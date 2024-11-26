@@ -1,0 +1,22 @@
+# notebooks
+*.ipynb
+.ipynb_checkpoints
+
+# weights
+*ckpt*
+*checkpoint*
+*.h5
+*.hdf5
+
+# Data folder
+data/*
+!data/.keep
+
+# Specific files
+util/loss_func.py
+
+# Numpy binary files
+*.npz
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
