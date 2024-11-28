@@ -37,19 +37,19 @@ def main(config_path):
 
     # Create data generators
     train_data_gen = DataGenerator(
-        directory=train_data_dir,
-        file_list=train_data_list,
+        data_dir=train_data_dir,
+        data_list=train_data_list,
         batch_size=config.data['train_batch'],
-        noise_params=config.data['noise'],
-        domain_params=config.data['domain']
+        noise=config.data['noise'],
+        domain=config.data['domain']
     ).imageLoader()
 
     val_data_gen = DataGenerator(
-        directory=val_data_dir,
-        file_list=val_data_list,
+        data_dir=val_data_dir,
+        data_list=val_data_list,
         batch_size=config.data['val_batch'],
-        noise_params=config.data['noise'],
-        domain_params=config.data['domain']
+        noise=config.data['noise'],
+        domain=config.data['domain']
     ).imageLoader()
 
     # Initialize and configure the model
