@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import glob
 import random
 import argparse
+from skimage import exposure
 
 # visualization for two images
 def subShow3(IMG1, IMG2, IMG3, domain='LM'):
@@ -231,6 +232,16 @@ def rescale(image_stack, MIN=0, MAX=1):
     else:
         image_scale = image_stack
     return np.asarray(image_scale)
+
+def clip_intensity(image_stack, LOW_PERC=2, HIGH_PERC=98):
+    # Rescale the whole stack
+    image_clip_intensity = []
+    for stack in range(image_stack.shape[0]):
+        temp = image_stack[stack, ...]
+        p_low, p_high = np.percentile(temp, (LOW_PERC, HIGH_PERC))
+        temp_clip_intensity = exposure.rescale_intensity(temp, in_range=(p_low, p_high))
+        image_clip_intensity.append(temp_clip_intensity.astype('float64'))
+    return np.asarray(image_clip_intensity)
 
 # load databanks for both LM and EM
 class DataGenerator:
