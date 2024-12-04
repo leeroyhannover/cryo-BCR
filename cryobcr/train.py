@@ -1,6 +1,7 @@
 # Main file for training the cryoBCR model
 
 import os
+import argparse
 import numpy as np
 import tensorflow as tf
 import keras
@@ -17,7 +18,7 @@ from cryobcr.models.BCR_block import *
 from cryobcr.utils.loss_func import *
 from cryobcr.utils.metrics import *
 
-def run_train(config_path):
+def run_train(args):
     """
     Main function to train the cryoBCR model.
     
@@ -25,6 +26,7 @@ def run_train(config_path):
     config_path (str): Path to the YAML configuration file.
     """
     # Load configuration
+    config_path = args.config;
     config = get_config(config_path)
 
     # Define data paths
@@ -80,7 +82,6 @@ def run_train(config_path):
 
 # trainer for EM using N2N framework
 def trainer(config, model, multi_input, loss_function, metrics_function, train_generator, val_generator, visualization=False):
-
     optimizer = tf.keras.optimizers.Adam(learning_rate=config.training['lr'])
     checkpoint = tf.train.Checkpoint(model=model)
     checkpoint_manager = tf.train.CheckpointManager(checkpoint, config.training['ckpt_path'], max_to_keep=5)

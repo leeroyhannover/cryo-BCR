@@ -8,7 +8,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import argparse
 
-from cryobcr.train import run_train
+def setup_train(subparsers):
+    from .train import run_train
+    parser_train = subparsers.add_parser("train", help="Train Cryo-BCR model on your own set of tomograms.")
+    parser_train.add_argument('--config', type=str, default="configs/EM_low_freq_denoising.yaml", help="Path to the YAML configuration file.")
+    parser_train.set_defaults(func=run_train)
 
 def main():
     # Parse command-line arguments
@@ -21,11 +25,9 @@ def main():
     )
     subparsers = parser.add_subparsers(title="commands", dest="command")
 
-    # Register subcommands
-    parser_train = subparsers.add_parser("train", help="Train Cryo-BCR model on your own set of tomograms.")
-    parser_train.add_argument('--config', type=str, default="configs/EM_low_freq_denoising.yaml", help="Path to the YAML configuration file.")
-    parser_train.set_defaults(func=run_train) 
-
+    # Register subcommands    
+    setup_train(subparsers)
+    
     args = parser.parse_args()
 
     # Call the appropriate function based on the command
