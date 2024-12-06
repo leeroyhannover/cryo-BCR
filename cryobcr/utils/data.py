@@ -7,18 +7,22 @@ from cryobcr.utils.constants import TRAIN_FRACTION_DEFAULT
 
 def get_mrc_filenames(dir_path, halfsets=False):
     if halfsets == True:
-        filenames_even = [filename for filename in  os.listdir(dir_path) if filename.endswith('_even.mrc') or filename.endswith('_even.rec')]
-        filenames_odd = [filename for filename in  os.listdir(dir_path) if filename.endswith('_odd.mrc') or filename.endswith('_odd.rec')]
-        return filenames_even, filenames_odd
+        filenames_even = [filename for filename in os.listdir(dir_path) if filename.endswith('_even.mrc') or filename.endswith('_even.rec')]
+        filenames_odd = [filename for filename in os.listdir(dir_path) if filename.endswith('_odd.mrc') or filename.endswith('_odd.rec')]
+        return sorted(filenames_even), sorted(filenames_odd)
     else:
         filenames = [filename for filename in os.listdir(dir_path) if filename.endswith('.rec') or filename.endswith('.mrc')]
         filenames = natsorted(filenames)
         return filenames
-        
-def read_mrc_data(directory_path, filenames):
+
+def get_npz_filenames(dir_path):
+    filenames = [filename for filename in os.listdir(dir_path) if filename.endswith('.npz')]
+    return filenames
+
+def read_mrc_data(dir_path, filenames):
     all_data = []
     for filename in filenames:
-        filepath = os.path.join(directory_path, filename)
+        filepath = os.path.join(dir_path, filename)
         with mrcfile.open(filepath, permissive=True) as mrc:
             data = mrc.data.astype(np.float32)  # Convert to float32 for compatibility
             all_data.append(data)
@@ -68,6 +72,7 @@ def patchify_data(data, patch_size=[128,128,128], overlap_perc=[0.,0.,0.]):
             for y_start in y_range:
                 for z_start in z_range:
                     patch = volume[z_start:z_start+patch_size[2], x_start:x_start+patch_size[0], y_start:y_start+patch_size[1]]
+                    patch = np.array(patch)
                     patches.append(patch)
     
     patches = np.array(patches)    
@@ -103,10 +108,9 @@ def stitch_patches(patches, volume_shape=[384,384,128], overlap_perc=[0.,0.,0.])
             volume[z_start:z_start+patch_shape[0],x_start:x_start+patch_shape[1],y_start:y_start+patch_shape[2]] = volume_patches[patch_idx]    
         data.append(volume)
         
-    data = data[0] if len(data) == 1 else data
     data = np.array(data)
     
-    return data
+    return volumes_num, data
 
 
 '''
