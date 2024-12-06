@@ -35,22 +35,22 @@ def run_extract(args):
     else:
         train_fraction = args.train_fraction
         
-        mrc_filenames_even, mrc_filenames_odd = get_mrc_filenames(mrcs_dir_path, halfsets=False)
-        
+        mrc_filenames_even, mrc_filenames_odd = get_mrc_filenames(mrcs_dir_path, halfsets=True)
+
         data_even = read_mrc_data(mrcs_dir_path, mrc_filenames_even)
         data_odd = read_mrc_data(mrcs_dir_path, mrc_filenames_odd)
-
+        
         data_train_even, data_val_even = split_train_data(data_even, train_fraction)
         data_train_odd, data_val_odd = split_train_data(data_odd, train_fraction)
         
         patches_train_even = patchify_data(data_train_even, patch_size, patch_overlap)
         patches_train_odd = patchify_data(data_train_odd, patch_size, patch_overlap)
-        patches_val_even = patchify_data(data_val_even, patch_size, overlap_perc)
-        patches_val_odd = patchify_data(data_val_odd, patch_size, overlap_perc)
+        patches_val_even = patchify_data(data_val_even, patch_size, patch_overlap)
+        patches_val_odd = patchify_data(data_val_odd, patch_size, patch_overlap)
         
         if not os.path.exists(npzs_dir_path + os.sep + 'train'):
             os.makedirs(npzs_dir_path + os.sep + 'train')
-        train_data_dirpath = npzs_dir_path + os.sep + 'train' + os.sep + 'train_patch.npz'
+        train_data_path = npzs_dir_path + os.sep + 'train' + os.sep + 'train_patch.npz'
         np.savez(train_data_path, even=patches_train_even, odd=patches_train_odd)
         print('Saved train even/odd patches at: ' + train_data_path)
         
