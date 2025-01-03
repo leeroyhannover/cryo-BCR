@@ -45,6 +45,18 @@ def setup_assemble(subparsers):
     parser_assemble.add_argument('--patch_overlap', type=str, default='0.,0.,0.', help="Fraction (0.0-1.0) of overlap used to extract patches. Provide as comma-separated list of 3 decimal numbers for overlap fractions along x,y,z (default: 0.,0.,0.).")
     parser_assemble.set_defaults(func=run_assemble)
 
+def setup_preproc(subparsers):
+    from .preproc import run_preproc
+    parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD should be available.")
+    parser_preproc.add_argument('--input_path', type=str, help="Path to the location of tilt-series directories, each containing raw dose-fractionated movies (MRC or TIFF), corresponding to the single tilt-series. If XF files are provided, stack alignment can be performed (see --align). If DEFOCUS files are provided, CTF correction by phase-flipping can be performed (see --ctfc). IF TLT files are provided, tomogram reconstruction can be performed (see --rec).")
+    parser_preproc.add_argument('--output_path', type=str, default='./preproc', help="Path to the output folder for half-tomograms and intermediate pre-processing data.")
+    parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
+    parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT, help="Parameters string listing additional MotionCor2 parameters to be used. Avoid here MotionCor2 parameters which are already auto-filled (-InMrc / -InTiff / -OutMrc), provided separately (-PixSize <-> --apix, -Gpu <-> --gpu_id, -Gain <-> --gain_path), or enforced (\"" + MCOR_ENFORCE + "\"). Defaults: \"" + MCOR_PARAMS_DEFAULT + "\".")
+    parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
+    parser_preproc.add_argument('--apix', type=float, help="Pixel size of the input data.")
+    parser_preproc.add_argument("--gpu_ids", type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
+    parser_preproc.set_defaults(func=run_preproc)
+
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse
 def ranged_type(value_type, min_value, max_value):
     def range_checker(arg: str):
@@ -70,9 +82,10 @@ def main():
     subparsers = parser.add_subparsers(title="commands", dest="command")
 
     # Register subcommands    
+    setup_preproc(subparsers)
+    setup_extract(subparsers)
     setup_train(subparsers)
     setup_predict(subparsers)
-    setup_extract(subparsers)
     setup_assemble(subparsers)
     
     args = parser.parse_args()
