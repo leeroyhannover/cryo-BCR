@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
+import re
 import random
 import argparse
 from skimage import exposure
@@ -309,3 +310,12 @@ class DataGenerator:
                     o_temp = self._rescale(o_temp, MIN=0, MAX=1)
                     
                     yield w_img_temp, o_temp
+
+def extract_angle(line):
+    angle_regex_match = re.search(r'_[+-]{0,1}[0-9]{1,2}[.][0-9]{1}_', line)
+    if angle_regex_match:
+        angle = angle_regex_match.group()[1:-1]
+        angle = float(angle)
+    else:
+        angle = None
+    return angle

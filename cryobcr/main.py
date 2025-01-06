@@ -55,6 +55,8 @@ def setup_preproc(subparsers):
     parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
     parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
     parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
+    parser_preproc.add_argument("--skip_assemble", type=bool, default=False, help="Flag to skip assembly of the raw stacks from motion-corrected data. Default: False.")
+    parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse

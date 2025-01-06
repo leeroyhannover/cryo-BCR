@@ -2,11 +2,11 @@ import os
 import re
 import argparse
 import subprocess
-
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from cryobcr.utils.constants import MCOR_ENFORCE
+from cryobcr.utils.utils import extract_angle
 
 def run_preproc(args):
 
@@ -14,25 +14,67 @@ def run_preproc(args):
     
     ts_names = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
     ts_names = sorted(ts_names)
-    
-    if args.skip_mcor:
-        print('Motion correction - skipped!')
-    else:
-        print("##### Motion correction #####")
-        run_mcor(ts_names, args)
-        print("#############################")
 
+    print("\n##### Motion correction #####")
+    if args.skip_mcor:
+        print('Skipped!')
+    else:
+        run_mcor(ts_names, args)
+    
+    print("\n##### Stack assembly #####")
+    if args.skip_assemble:
+        print('Skipped!')
+    else:
+        run_assemble(ts_names, args)
+
+# Function to setup and submit list of IMOD cmd-tasks 
+def run_assemble(ts_names, args):
+
+    cmd_tasks = []
+    for ts_id in range(len(ts_names)):
+        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'EVN')])
+        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'ODD')])
+    run_parallel_tasks(cmd_tasks, args.cpus, "Stacks assembled (even+odd)")
+    
+def get_assemble_cmd(data_path, ts_name, half_name):
+    
+    dirpath_in = data_path + os.sep + ts_name + os.sep + "views"
+    files_in = [filename for filename in os.listdir(dirpath_in) if os.path.isfile(dirpath_in + os.sep + filename) and filename.endswith(half_name + '.mrc')]
+
+    if len(files_in) == 0:
+        print("No motion-corrected views found: " + ts_name + '_' + half_name)
+        return None
+    
+    views_dict = {extract_angle(file_in):file_in for file_in in files_in}
+    
+    tlt_in = data_path + os.sep + ts_name + os.sep + ts_name + '.tlt'
+    if os.path.exists(tlt_in) and os.path.isfile(tlt_in):
+        with open(tlt_in, 'r') as fid:
+            tlt_lines = fid.readlines()
+        tlt_angles = [float(tlt_line.replace('\n', ' ').strip()) for tlt_line in tlt_lines]
+        views_dict = {angle:file_in for angle,file_in in views_dict.items() if angle in tlt_angles}    
+    
+    filepaths_in = [dirpath_in + os.sep + file_in for _,file_in in sorted(views_dict.items())]
+    
+    stk_raw_filepath = data_path + os.sep + ts_name + os.sep + ts_name + ".raw." + half_name + ".mrc"
+    stdout_filepath = os.path.splitext(stk_raw_filepath)[0]
+    assemble_stk_cmd = "newstack" \
+        + " " + " ".join(filepaths_in) \
+        + " " + stk_raw_filepath
+    
+    return assemble_stk_cmd, stdout_filepath
+
+# Function to setup and submit list of MotionCor2 cmd-tasks 
 def run_mcor(ts_names, args):
     
     for ts_id in range(len(ts_names)):
+        print('\nTilt-serie: ' + ts_names[ts_id])
         dirpath_in = args.data_path + os.sep + ts_names[ts_id] + os.sep + "movies"
         files_in = [filename for filename in os.listdir(dirpath_in) if os.path.isfile(dirpath_in + os.sep + filename) and (filename.endswith('.tiff') or filename.endswith('.mrc'))]
         files_in = sorted(files_in)
         
-        if len(files_in) != 0:
-            print("Input data found: " + ts_names[ts_id])
-        else:
-            print("No input data found: " + ts_names[ts_id])
+        if len(files_in) == 0:
+            print("No input movies found!")
             continue;
         
         dirpath_out = args.data_path + os.sep + ts_names[ts_id] + os.sep + "views"
@@ -68,7 +110,6 @@ def run_mcor(ts_names, args):
             filepath_stdout = os.path.splitext(filepath_out)[0]
             cmd_tasks.append((cmd_str, filepath_stdout))
 
-        print("Motion correction: " + ts_names[ts_id])
         run_parallel_tasks(cmd_tasks, len(gpu_ids), "Movies corrected")
     
 # Function to execute multiple command line tasks in parallel
