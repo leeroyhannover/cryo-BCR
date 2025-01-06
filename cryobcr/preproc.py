@@ -1,4 +1,5 @@
 import os
+import re
 import argparse
 import subprocess
 
@@ -9,81 +10,82 @@ from cryobcr.utils.constants import MCOR_ENFORCE
 
 def run_preproc(args):
 
-    ts_dirs_path = args.input_path
-    output_dir_path = args.output_path
+    data_path = args.data_path
+    
+    ts_names = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
+    ts_names = sorted(ts_names)
+    
+    if args.skip_mcor:
+        print('Motion correction - skipped!')
+    else:
+        print("##### Motion correction #####")
+        run_mcor(ts_names, args)
+        print("#############################")
 
-    if not os.path.exists(output_dir_path):
-        os.makedirs(output_dir_path)
-
-    ts_dirs = [dir_item for dir_item in os.listdir(ts_dirs_path) if os.path.isdir(ts_dirs_path + os.sep + dir_item)]
-    ts_dirs = sorted(ts_dirs)
-
-    print("Starting motion correction...")
-    for idx in range(len(ts_dirs)):
-        print("Tilt serie: " + ts_dirs[idx])
-        ts_dir_in = ts_dirs_path + os.sep + ts_dirs[idx]
-        ts_dir_out = output_dir_path + os.sep + ts_dirs[idx] + os.sep + "views"
+def run_mcor(ts_names, args):
+    
+    for ts_id in range(len(ts_names)):
+        dirpath_in = args.data_path + os.sep + ts_names[ts_id] + os.sep + "movies"
+        files_in = [filename for filename in os.listdir(dirpath_in) if os.path.isfile(dirpath_in + os.sep + filename) and (filename.endswith('.tiff') or filename.endswith('.mrc'))]
+        files_in = sorted(files_in)
         
-        if not os.path.exists(ts_dir_out):
-            os.makedirs(ts_dir_out)
+        if len(files_in) != 0:
+            print("Input data found: " + ts_names[ts_id])
+        else:
+            print("No input data found: " + ts_names[ts_id])
+            continue;
+        
+        dirpath_out = args.data_path + os.sep + ts_names[ts_id] + os.sep + "views"
+        if not os.path.exists(dirpath_out):
+            os.makedirs(dirpath_out)
+    
+        gpu_ids = [int(gpu_id) for gpu_id in args.gpu_ids.strip().split(',')]
+        
+        cmd_tasks = []
+        for file_id in range(len(files_in)):
+            file_in = files_in[file_id]
+            input_fmt = 'Tiff' if file_in.endswith('.tiff') else 'Mrc' if file_in.endswith('.mrc') else None
+            file_out = os.path.splitext(file_in)[0] + '.mrc' 
+            file_log = os.path.splitext(file_in)[0] + '.log'
+            
+            filepath_in = dirpath_in + os.sep + file_in
+            filepath_out = dirpath_out + os.sep + file_out
+            filepath_log = dirpath_out + os.sep + file_log
+            
+            cmd_str = args.mcor_exe \
+                + " -In" + input_fmt + " " + filepath_in \
+                + " -OutMrc " + filepath_out \
+                + " -LogFile " + filepath_log \
+                + " " + args.mcor_params \
+                + " -PixSize " + str(args.apix) \
+                + " " + MCOR_ENFORCE
+    
+            if args.gain_path != '':
+                cmd_str = cmd_str + " -Gain " + args.gain_path
 
-        run_mcor(ts_dir_in, ts_dir_out, args)
-    print("Motion correction is finished!")  
-    
-def run_mcor(movies_dir_path, output_dir_path, args):
-    
-    movie_files = [filename for filename in os.listdir(movies_dir_path) if os.path.isfile(movies_dir_path + os.sep + filename) and (filename.endswith('.tiff') or filename.endswith('.mrc'))]
-    movie_files = sorted(movie_files)
-    
-    mcor_cmds = []
-    for movie_file_in in movie_files:
-        input_fmt = 'Tiff' if movie_file_in.endswith('.tiff') else 'Mrc' if movie_file_in.endswith('.mrc') else None
-        movie_file_out = os.path.splitext(movie_file_in)[0] + '.mcor.mrc' 
-        log_file_out = os.path.splitext(movie_file_in)[0] + '.mcor.log'
-        
-        movie_file_in_path = movies_dir_path + os.sep + movie_file_in
-        movie_file_out_path = output_dir_path + os.sep + movie_file_out
-        log_file_out_path = output_dir_path + os.sep + log_file_out
-        
-        mcor_params_str = args.mcor_exe \
-            + " -In" + input_fmt + " " + movie_file_in_path \
-            + " -OutMrc " + movie_file_out_path \
-            + " -LogFile " + log_file_out_path \
-            + " " + args.mcor_params \
-            + " -PixSize " + str(args.apix) \
-            + " " + MCOR_ENFORCE
+            cmd_str = cmd_str + " -Gpu " + str(gpu_ids[file_id % len(gpu_ids)])
+            
+            filepath_stdout = os.path.splitext(filepath_out)[0]
+            cmd_tasks.append((cmd_str, filepath_stdout))
 
-        if args.gain_path != '':
-            mcor_params_str = mcor_params_str + " -Gain " + args.gain_path
-        
-        stdout_filepath = os.path.splitext(movie_file_out_path)[0]
-        mcor_cmds.append((mcor_params_str, stdout_filepath))
+        print("Motion correction: " + ts_names[ts_id])
+        run_parallel_tasks(cmd_tasks, len(gpu_ids), "Movies corrected")
     
-    gpu_ids = [int(idx) for idx in args.gpu_ids.strip().split(',')]
-    run_mcor_in_parallel(mcor_cmds, gpu_ids)
-    
-# Main function to execute tasks in parallel
-def run_mcor_in_parallel(tasks, gpus):
-    if not gpus:
-        print("No GPUs available.")
-        return
-    
+# Function to execute multiple command line tasks in parallel
+def run_parallel_tasks(cmd_tasks, n_workers, pbar_title=""):
     futures = []
     results = []
-
-    gpu_cycle = (gpus[i % len(gpus)] for i in range(len(tasks)))
     
-    with ThreadPoolExecutor(max_workers=len(gpus)) as executor:
-        for task, gpu_id in zip(tasks, gpu_cycle):
-            mcor_params_str, std_filepath = task
-            mcor_cmd = mcor_params_str + " -Gpu " + str(gpu_id)
-            futures.append(executor.submit(run_mcor_on_gpu, mcor_cmd, std_filepath))
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        for cmd_task in cmd_tasks:
+            cmd_str, filepath_stdout = cmd_task
+            futures.append(executor.submit(run_single_task, cmd_str, filepath_stdout))
         
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Micrographs ready"):
+        for future in tqdm(as_completed(futures), total=len(futures), desc=pbar_title):
             results.append(future.result())
-    
-# Define the task to run on each GPU
-def run_mcor_on_gpu(command, std_filepath):
+
+# Function to execute a single command line task
+def run_single_task(command, std_filepath):
     result = subprocess.run(command, shell=True, capture_output=True)
 
     if result.stderr:

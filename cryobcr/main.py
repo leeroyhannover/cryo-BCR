@@ -47,14 +47,14 @@ def setup_assemble(subparsers):
 
 def setup_preproc(subparsers):
     from .preproc import run_preproc
-    parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD should be available.")
-    parser_preproc.add_argument('--input_path', type=str, help="Path to the location of tilt-series directories, each containing raw dose-fractionated movies (MRC or TIFF), corresponding to the single tilt-series. If XF files are provided, stack alignment can be performed (see --align). If DEFOCUS files are provided, CTF correction by phase-flipping can be performed (see --ctfc). IF TLT files are provided, tomogram reconstruction can be performed (see --rec).")
-    parser_preproc.add_argument('--output_path', type=str, default='./preproc', help="Path to the output folder for half-tomograms and intermediate pre-processing data.")
+    parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD needed for individual steps.")
+    parser_preproc.add_argument('--data_path', type=str, help="Path to the tilt-series data to be processed, organised to individual directories per each tilt-serie. Contents: raw dose-fractionated movies (MRC or TIFF) to be motion-corrected (in subfolder \"movies/\"), motion-corrected half-dose views (along with TLT files) to be assembled in half-dose stacks (in subfolder \"views/\"), XF files to perform stack alignment, DEFOCUS files to perform CTF correction by phase-flipping, and TLT files to perform tomogram reconstruction.")
+    parser_preproc.add_argument("--skip_mcor", type=bool, default=False, help="Flag to skip motion-correction of the raw data. Default: False.")
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
-    parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT, help="Parameters string listing additional MotionCor2 parameters to be used. Avoid here MotionCor2 parameters which are already auto-filled (-InMrc / -InTiff / -OutMrc), provided separately (-PixSize <-> --apix, -Gpu <-> --gpu_id, -Gain <-> --gain_path), or enforced (\"" + MCOR_ENFORCE + "\"). Defaults: \"" + MCOR_PARAMS_DEFAULT + "\".")
+    parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT, help="Parameters string listing additional MotionCor2 parameters to be used. Avoid here MotionCor2 parameters which are already auto-filled (-InMrc / -InTiff / -OutMrc / -LogFile), provided separately (-PixSize <-> --apix, -Gpu <-> --gpu_id, -Gain <-> --gain_path), or enforced (\"" + MCOR_ENFORCE + "\"). Defaults: \"" + MCOR_PARAMS_DEFAULT + "\".")
     parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
-    parser_preproc.add_argument('--apix', type=float, help="Pixel size of the input data.")
-    parser_preproc.add_argument("--gpu_ids", type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
+    parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
+    parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse
