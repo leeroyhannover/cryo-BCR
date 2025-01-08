@@ -64,9 +64,8 @@ def setup_preproc(subparsers):
                                     "- motion-corrected half-dose views (along with TLT files) to be assembled in half-dose stacks (in subfolder \"views/\")\n"
                                     "- XF files to perform stack alignment (named as <TS_DIRECTORY_NAME>.xf)\n"
                                     "- DEFOCUS files to perform CTF correction by phase-flipping (named as <TS_DIRECTORY_NAME>.defocus)\n"
-                                    "- TLT files to perform tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
-                                    "Angles in TLT files are also used to selcet views during raw stack assembly.\n"
-                                    "Produced stacks (raw, aligned, CTF-corrected, binned) will be placed in subfolder \"stacks/\".\n"
+                                    "- TLT files for stacks assembly, CTF-correction and tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
+                                    "All produced stacks are placed in subfolder \"stacks/\", final half-set tomograms - in the tilt-series folder root.\n"
                                 ))
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
     parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT,
@@ -80,7 +79,7 @@ def setup_preproc(subparsers):
                                 ))
     parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
     parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
-    parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
+    parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction task).")
     parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
     parser_preproc.add_argument('--skip', choices=['', 'mcor', 'asmbl', 'align', 'ctfc', 'bin', 'rec'], default='',
                                 help=(
@@ -88,9 +87,22 @@ def setup_preproc(subparsers):
                                     "mcor\t- skip motion-correction\n"
                                     "asmbl\t- skip raw stack assembly\n"
                                     "align\t- skip raw stack alignment\n"
+                                    "bin\t- skip aligned stack binning\n"
+                                    "ctfc\t- skip aligned (binned) stack CTF-correction\n"
                                     "Provide as a single string or a space-separated list.\n"
                                     "If nothing selected, all the pre-processing steps are executed (default)."
                                 ), nargs="+")
+    parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series.")
+    parser_preproc.add_argument('--ctfc_params', type=str, default=CTFC_PARAMS_DEFAULT,
+                                help=(
+                                    "Parameters string listing additional ctfphaseflip parameters to be used.\n"
+                                    "- already auto-filled: -input, -output, -angleFn (TLT file), -defFn (DEFOCUS file), -maxWidth (set to input stack height)\n"
+                                    "- provided separately: -pixelSize (see --apix), -volt (see --kV), -cs (see --Cs_mm)\n"
+                                    "Defaults: \"" + CTFC_PARAMS_DEFAULT + "\"."
+                                ))
+    parser_preproc.add_argument('--kV', type=int, default=300, help="High-tension for CTF-correction. Default: 300 (kV)")
+    parser_preproc.add_argument('--Cs_mm', type=float, default=2.7, help="Spherical aberration coefficient for CTF-correction. Default: 2.7 (mm)")
+    parser_preproc.add_argument('--no_auto_maxWidth', action="store_true", default=False, help="Flag to avoid setting of the -maxWidth with the input stack size during CTF-correction, which is set by default.")  
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse

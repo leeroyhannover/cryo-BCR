@@ -1,6 +1,7 @@
 MCOR_ENFORCE ='-SplitSum 1 -Align 1'
 MCOR_PARAMS_DEFAULT = '-Ite 50 -Tol 0.5 -Patch 7 5 15'
 
+CTFC_PARAMS_DEFAULT = '-defTol 20 -iWidth 15 -ampContrast 0.1'
 
 TRAIN_FRACTION_DEFAULT = 0.8
 TRAIN_FRACTION_MIN = 0.05
