@@ -9,26 +9,27 @@ from cryobcr.utils.constants import MCOR_ENFORCE
 from cryobcr.utils.utils import extract_angle
 
 def run_preproc(args):
-
+    
+    skip_steps = args.skip
     data_path = args.data_path
     
     ts_names = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
     ts_names = sorted(ts_names)
 
     print("\n##### Motion correction #####")
-    if args.skip_mcor:
+    if 'mcor' in skip_steps: 
         print('Skipped!')
     else:
         run_mcor(ts_names, args)
     
     print("\n##### Stack assembly #####")
-    if args.skip_assemble:
+    if 'asmbl' in skip_steps:
         print('Skipped!')
     else:
         run_assemble(ts_names, args)
 
     print("\n##### Stack alignment #####")
-    if args.skip_align:
+    if 'align' in skip_steps:
         print('Skipped!')
     else:
         run_align(ts_names, args)

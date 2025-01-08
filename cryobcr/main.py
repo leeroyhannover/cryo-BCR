@@ -9,6 +9,13 @@ from cryobcr.utils.constants import *
 #else:
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# for multi-line formatting of the description and help messages
+class CustomHelpFormatter(argparse.RawTextHelpFormatter):
+    """
+    Custom formatter to preserve formatting for both argument help and description.
+    """
+    pass
+
 def setup_train(subparsers):
     from .train import run_train
     parser_train = subparsers.add_parser("train", help="Train Cryo-BCR denoising model on your own set of patched tomograms.")
@@ -47,16 +54,43 @@ def setup_assemble(subparsers):
 
 def setup_preproc(subparsers):
     from .preproc import run_preproc
-    parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD needed for individual steps.")
-    parser_preproc.add_argument('--data_path', type=str, help="Path to the tilt-series data to be processed, organised to individual directories per each tilt-serie. Contents: raw dose-fractionated movies (MRC or TIFF) to be motion-corrected (in subfolder \"movies/\"), motion-corrected half-dose views (along with TLT files) to be assembled in half-dose stacks (in subfolder \"views/\"), XF files to perform stack alignment, DEFOCUS files to perform CTF correction by phase-flipping, and TLT files to perform tomogram reconstruction.")
-    parser_preproc.add_argument("--skip_mcor", type=bool, default=False, help="Flag to skip motion-correction of the raw data. Default: False.")
+    parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD needed for individual steps.", formatter_class=CustomHelpFormatter)
+    parser_preproc.add_argument('--data_path', type=str,
+                                help=(
+                                    "Path to the tilt-series data to be processed, organised to individual directories per each tilt-serie.\n"
+                                    "Directory names are used as the corresponding tilt-serie names (for stacks and tomograms).\n"
+                                    "Initial contents:\n"
+                                    "- raw dose-fractionated movies (MRC or TIFF) to be motion-corrected (in subfolder \"movies/\")\n"
+                                    "- motion-corrected half-dose views (along with TLT files) to be assembled in half-dose stacks (in subfolder \"views/\")\n"
+                                    "- XF files to perform stack alignment (named as <TS_DIRECTORY_NAME>.xf)\n"
+                                    "- DEFOCUS files to perform CTF correction by phase-flipping (named as <TS_DIRECTORY_NAME>.defocus)\n"
+                                    "- TLT files to perform tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
+                                    "Angles in TLT files are also used to selcet views during raw stack assembly.\n"
+                                    "Produced stacks (raw, aligned, CTF-corrected, binned) will be placed in subfolder \"stacks/\".\n"
+                                ))
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
-    parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT, help="Parameters string listing additional MotionCor2 parameters to be used. Avoid here MotionCor2 parameters which are already auto-filled (-InMrc / -InTiff / -OutMrc / -LogFile), provided separately (-PixSize <-> --apix, -Gpu <-> --gpu_id, -Gain <-> --gain_path), or enforced (\"" + MCOR_ENFORCE + "\"). Defaults: \"" + MCOR_PARAMS_DEFAULT + "\".")
+    parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT,
+                                help=(
+                                    "Parameters string listing additional MotionCor2 parameters to be used.\n"
+                                    "Avoid here MotionCor2 parameters which are:\n"
+                                    "- already auto-filled: -InMrc / -InTiff / -OutMrc / -LogFile\n"
+                                    "- provided separately: -PixSize (see --apix), -Gpu (see --gpu_id), -Gain (see --gain_path)\n"
+                                    "- enforced: \"" + MCOR_ENFORCE + "\"\n"
+                                    "Defaults: \"" + MCOR_PARAMS_DEFAULT + "\"."
+                                ))
     parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
     parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
     parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction).")
-    parser_preproc.add_argument("--skip_assemble", type=bool, default=False, help="Flag to skip assembly of the raw stacks from motion-corrected data. Default: False.")
     parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
+    parser_preproc.add_argument('--skip', choices=['', 'mcor', 'asmbl', 'align', 'ctfc', 'bin', 'rec'], default='',
+                                help=(
+                                    "Flag to skip one or several of the pre-processing steps:\n"
+                                    "mcor\t- skip motion-correction\n"
+                                    "asmbl\t- skip raw stack assembly\n"
+                                    "align\t- skip raw stack alignment\n"
+                                    "Provide as a single string or a space-separated list.\n"
+                                    "If nothing selected, all the pre-processing steps are executed (default)."
+                                ), nargs="+")
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse
@@ -76,10 +110,10 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description=(
-            "A deep learning model for cryo-ET data denoising. "
-            "The model is based on BCR-wavelets decomposition and works in Noise2Noise framework. "
+            "A deep learning model for cryo-ET data denoising. The model is based on BCR-wavelets decomposition and works in Noise2Noise framework.\n"
             "This tool helps you to denoise your tomograms using a trained cryo-BCR model as well as to prepare even/odd tomogram halfsets and train model on your own data." 
-        )
+        ),
+        formatter_class=CustomHelpFormatter
     )
     subparsers = parser.add_subparsers(title="commands", dest="command")
 
@@ -91,7 +125,7 @@ def main():
     setup_assemble(subparsers)
     
     args = parser.parse_args()
-
+    
     # Call the appropriate function based on the command
     if hasattr(args, "func"):
         args.func(args)
