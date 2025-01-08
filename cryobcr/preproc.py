@@ -27,17 +27,52 @@ def run_preproc(args):
     else:
         run_assemble(ts_names, args)
 
-# Function to setup and submit list of IMOD cmd-tasks 
-def run_assemble(ts_names, args):
+    print("\n##### Stack alignment #####")
+    if args.skip_align:
+        print('Skipped!')
+    else:
+        run_align(ts_names, args)
+    
+# Function to submit list of stack-assembly cmd-tasks 
+def run_align(ts_names, args):
+    cmd_tasks = []
+    for ts_id in range(len(ts_names)):
+        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'EVN')])
+        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'ODD')])
+    run_parallel_tasks(cmd_tasks, args.cpus, "Stacks aligned (even+odd)")
 
+# Function to setup stack-alignment cmd-task 
+def get_align_cmd(data_path, ts_name, half_name):
+    ts_path = data_path + os.sep + ts_name
+    stk_raw_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.raw.' + half_name + '.mrc'
+    if not os.path.exists(stk_raw_filepath) or not os.path.isfile(stk_raw_filepath):
+        print("No raw stack found: " + ts_name + '_' + half_name)
+        return None
+    
+    xf_filepath = ts_path + os.sep + ts_name + '.xf'
+    if not os.path.exists(xf_filepath) or not os.path.isfile(xf_filepath):
+        print("No XF file found: " + ts_name + '_' + half_name)
+        return None
+
+    stk_ali_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.ali.' + half_name + '.mrc'
+    stdout_filepath = os.path.splitext(stk_ali_filepath)[0]
+    assemble_stk_cmd = "newstack" \
+        + " -input " + stk_raw_filepath \
+        + " -output " + stk_ali_filepath \
+        + " -xform " + xf_filepath
+        
+    return assemble_stk_cmd, stdout_filepath
+
+# Function to submit list of stack-assembly cmd-tasks 
+def run_assemble(ts_names, args):
     cmd_tasks = []
     for ts_id in range(len(ts_names)):
         cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'EVN')])
         cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'ODD')])
     run_parallel_tasks(cmd_tasks, args.cpus, "Stacks assembled (even+odd)")
-    
+
+# Function to setup stack-assembly cmd-task 
 def get_assemble_cmd(data_path, ts_name, half_name):
-    
     dirpath_in = data_path + os.sep + ts_name + os.sep + "views"
     files_in = [filename for filename in os.listdir(dirpath_in) if os.path.isfile(dirpath_in + os.sep + filename) and filename.endswith(half_name + '.mrc')]
 
@@ -55,8 +90,10 @@ def get_assemble_cmd(data_path, ts_name, half_name):
         views_dict = {angle:file_in for angle,file_in in views_dict.items() if angle in tlt_angles}    
     
     filepaths_in = [dirpath_in + os.sep + file_in for _,file_in in sorted(views_dict.items())]
-    
-    stk_raw_filepath = data_path + os.sep + ts_name + os.sep + ts_name + ".raw." + half_name + ".mrc"
+
+    if not os.path.exists(data_path + os.sep + ts_name + os.sep + "stacks"):
+        os.makedirs(data_path + os.sep + ts_name + os.sep + "stacks")
+    stk_raw_filepath = data_path + os.sep + ts_name + os.sep + "stacks" + os.sep + ts_name + ".raw." + half_name + ".mrc"
     stdout_filepath = os.path.splitext(stk_raw_filepath)[0]
     assemble_stk_cmd = "newstack" \
         + " " + " ".join(filepaths_in) \
