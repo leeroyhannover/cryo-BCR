@@ -5,7 +5,7 @@ import subprocess
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from cryobcr.utils.constants import MCOR_ENFORCE, CTFC_PARAMS_DEFAULT
+from cryobcr.utils.constants import MCOR_ENFORCE, CTFC_PARAMS_DEFAULT, REC_PARAMS_DEFAULT
 from cryobcr.utils.utils import extract_angle
 
 def run_preproc(args):
@@ -47,6 +47,49 @@ def run_preproc(args):
         print('Skipped!')
     else:
         run_ctfc(ts_names, args)
+
+    print("\n##### Tomogram reconstruction #####")
+    if 'rec' in skip_steps:
+        print('Skipped!')
+    else:
+        run_rec(ts_names, args)
+
+# Function to submit list of tomogram reconstruction cmd-tasks 
+def run_rec(ts_names, args):
+    cmd_tasks = []
+    for ts_id in range(len(ts_names)):
+        cmd_tasks += filter(None, [get_rec_cmd(args.data_path, ts_names[ts_id], 'EVN', args)])
+        cmd_tasks += filter(None, [get_rec_cmd(args.data_path, ts_names[ts_id], 'ODD', args)])
+    run_parallel_tasks(cmd_tasks, args.cpus, "Tomograms reconstructed (even+odd)")
+
+# Function to setup tomogram reconstruction cmd-task 
+def get_rec_cmd(data_path, ts_name, half_name, args):
+    ts_path = data_path + os.sep + ts_name
+    stks_path = ts_path + os.sep + "stacks"
+
+    stk_type_suff = '.' + args.rec_data
+    bin_suff = '.bin' + str(args.bin) if args.bin > 1 else '' 
+    stk_in_filepath = stks_path + os.sep + ts_name + stk_type_suff + bin_suff + '.' + half_name + '.mrc'
+    if not os.path.exists(stk_in_filepath) or not os.path.isfile(stk_in_filepath):
+        print("No input stack found: " + ts_name + '_' + half_name)
+        return None
+
+    tlt_filepath = ts_path + os.sep + ts_name + '.tlt'
+    if not os.path.exists(tlt_filepath) or not os.path.isfile(tlt_filepath):
+        print("No TLT file found: " + ts_name + '_' + half_name)
+        return None
+    
+    tomo_out_filepath = ts_path + os.sep + ts_name + '.rec' + bin_suff + '.' + half_name + '.mrc'
+    stdout_filepath = os.path.splitext(tomo_out_filepath)[0]
+    rec_stk_cmd = "tilt" \
+        + " -input " + stk_in_filepath \
+        + " -output " + tomo_out_filepath \
+        + " -TILTFILE " + tlt_filepath \
+        + " -THICKNESS " + str(args.thickness) \
+        + " " + args.rec_params
+    print(rec_stk_cmd)
+    return rec_stk_cmd, stdout_filepath
+
 
 # Function to submit list of stack CTF-correction cmd-tasks 
 def run_ctfc(ts_names, args):
@@ -97,7 +140,7 @@ def get_ctfc_cmd(data_path, ts_name, half_name, args):
     if args.no_auto_maxWidth is False:
         stk_w,stk_h,stk_z = get_mrc_shape(stk_ali_filepath)
         ctfc_stk_cmd += " -maxWidth " + str(stk_h)
-    print(ctfc_stk_cmd)
+    
     return ctfc_stk_cmd, stdout_filepath
 
 def get_mrc_shape(mrc_filepath):

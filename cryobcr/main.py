@@ -89,10 +89,11 @@ def setup_preproc(subparsers):
                                     "align\t- skip raw stack alignment\n"
                                     "bin\t- skip aligned stack binning\n"
                                     "ctfc\t- skip aligned (binned) stack CTF-correction\n"
+                                    "rec\t- skip binned [CTF-corrected] tomogram reconstruction\n"
                                     "Provide as a single string or a space-separated list.\n"
-                                    "If nothing selected, all the pre-processing steps are executed (default)."
+                                    "If nothing selected (default), all the pre-processing steps are executed."
                                 ), nargs="+")
-    parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series.")
+    parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series. Default: 8.")
     parser_preproc.add_argument('--ctfc_params', type=str, default=CTFC_PARAMS_DEFAULT,
                                 help=(
                                     "Parameters string listing additional ctfphaseflip parameters to be used.\n"
@@ -102,7 +103,23 @@ def setup_preproc(subparsers):
                                 ))
     parser_preproc.add_argument('--kV', type=int, default=300, help="High-tension for CTF-correction. Default: 300 (kV)")
     parser_preproc.add_argument('--Cs_mm', type=float, default=2.7, help="Spherical aberration coefficient for CTF-correction. Default: 2.7 (mm)")
-    parser_preproc.add_argument('--no_auto_maxWidth', action="store_true", default=False, help="Flag to avoid setting of the -maxWidth with the input stack size during CTF-correction, which is set by default.")  
+    parser_preproc.add_argument('--no_auto_maxWidth', action="store_true", default=False, help="Flag to avoid setting of the -maxWidth with the input stack size during CTF-correction, which is set by default.")
+    parser_preproc.add_argument('--rec_data', choices=['ali', 'ctfc'], default='ctfc',
+                                help=(
+                                    "Switch to select tilt-serie types to be used for reconstruction:\n"
+                                    "ali - aligned (binned) non-CTF-corrected tilt-series\n"
+                                    "ctfc - aligned (binned) CTF-corrected tilt-series\n"
+                                    "The binning level is controlled by --bin.\n"
+                                    "Provide input as a single string. Default: ctfc."
+                                ))
+    parser_preproc.add_argument('--rec_params', type=str, default=REC_PARAMS_DEFAULT,
+                                help=(
+                                    "Parameters string listing additional tilt (reconstruction) parameters to be used.\n"
+                                    "- already auto-filled: -InputProjections, -OutputFile, -TILTFILE (TLT file)\n"
+                                    "- provided separately: -THICKNESS (see --thickness)\n"
+                                    "Defaults: \"" + REC_PARAMS_DEFAULT + "\"."
+                                ))
+    parser_preproc.add_argument('--thickness', type=int, default=256, help="Thickness (in voxels) of the tomograms to be reconstructed (at the specified binning level, see --bin). Default: 128.")
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse
