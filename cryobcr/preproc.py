@@ -2,10 +2,13 @@ import os
 import re
 import argparse
 import subprocess
+import mrcfile
+import numpy as np
+
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from cryobcr.utils.constants import MCOR_ENFORCE, CTFC_PARAMS_DEFAULT, REC_PARAMS_DEFAULT
+from cryobcr.utils.constants import *
 from cryobcr.utils.utils import extract_angle
 
 def run_preproc(args):
@@ -28,6 +31,12 @@ def run_preproc(args):
     else:
         run_assemble(ts_names, args)
 
+    print("\n##### Stack (dose-)normalizaton #####")
+    if 'norm' in skip_steps:
+        print('Skipped!')
+    else:
+        run_normalize(ts_names, args)
+    
     print("\n##### Stack alignment #####")
     if 'align' in skip_steps:
         print('Skipped!')
@@ -87,7 +96,7 @@ def get_rec_cmd(data_path, ts_name, half_name, args):
         + " -TILTFILE " + tlt_filepath \
         + " -THICKNESS " + str(args.thickness) \
         + " " + args.rec_params
-    print(rec_stk_cmd)
+    
     return rec_stk_cmd, stdout_filepath
 
 
@@ -179,14 +188,17 @@ def get_bin_cmd(data_path, ts_name, half_name, bin_lvl):
 def run_align(ts_names, args):
     cmd_tasks = []
     for ts_id in range(len(ts_names)):
-        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'EVN')])
-        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'ODD')])
+        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'EVN', args)])
+        cmd_tasks += filter(None, [get_align_cmd(args.data_path, ts_names[ts_id], 'ODD', args)])
     run_parallel_tasks(cmd_tasks, args.cpus, "Stacks aligned (even+odd)")
 
 # Function to setup stack-alignment cmd-task 
-def get_align_cmd(data_path, ts_name, half_name):
+def get_align_cmd(data_path, ts_name, half_name, args):
     ts_path = data_path + os.sep + ts_name
-    stk_raw_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.raw.' + half_name + '.mrc'
+
+    stk_in_type = 'raw' if args.align_raw else 'norm'
+    stk_raw_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.' + stk_in_type + '.' + half_name + '.mrc'
+    print(args.align_raw, stk_in_type)
     if not os.path.exists(stk_raw_filepath) or not os.path.isfile(stk_raw_filepath):
         print("No raw stack found: " + ts_name + '_' + half_name)
         return None
@@ -205,6 +217,58 @@ def get_align_cmd(data_path, ts_name, half_name):
         
     return assemble_stk_cmd, stdout_filepath
 
+def run_normalize(ts_names, args):
+
+    data_path = args.data_path
+    data_cycle = [(ts_id,half_name) for ts_id in range(len(ts_names)) for half_name in ['EVN', 'ODD']]
+    
+    for ts_id,half_name in data_cycle:
+        ts_name = ts_names[ts_id]
+        ts_path = data_path + os.sep + ts_name
+        stk_raw_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.raw.' + half_name + '.mrc'
+        stk_norm_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.norm.' + half_name + '.mrc'
+        
+        if not os.path.exists(stk_raw_filepath) or not os.path.isfile(stk_raw_filepath):
+            print("No raw stack found: " + ts_name + '_' + half_name)
+            continue
+        
+        dose_in = args.data_path + os.sep + ts_name + os.sep + ts_name + '_dose.txt'
+        if os.path.exists(dose_in) and os.path.isfile(dose_in):
+            with open(dose_in, 'r') as fid:
+                dose_sum = [float(dose_line.replace('\n', ' ').strip()) for dose_line in fid.readlines()]
+            dose_sum_idx = [(idx,dose) for idx,dose in enumerate(dose_sum)]
+        
+            dose_sum_idx.append((-1,0)) # append fake 0-dose '-1'-st element
+            dose_sum_idx.sort(key=lambda x: x[1]) # sort by sum (cumulative) dose
+            # subtract consequtive doses
+            dose_view_idx = [ ( dose_sum_idx[i][0], np.round(dose_sum_idx[i][1] - dose_sum_idx[i-1][1], 2) ) \
+                             for i in range(1,len(dose_sum_idx))] 
+            dose_view_idx.sort() # sort back by acquisition index
+            dose_coeff = np.array(dose_view_idx)[:,1]
+            dose_coeff = np.sqrt(dose_coeff.min() / dose_coeff) # calculate dose coeff. to re-scale sigma 
+        else:
+            dose_coeff = np.ones(stk_raw.shape[0])
+
+        #stk_raw = mrcfile.read(stk_raw_filepath)
+        #stk_norm = np.empty(stk_raw.shape, dtype=np.float32)
+        
+        stk_raw_mrc = mrcfile.mmap(stk_raw_filepath, 'r')
+        stk_norm_mrc = mrcfile.new_mmap(stk_norm_filepath, shape=stk_raw_mrc.data.shape, mrc_mode=2, overwrite=True)
+        for view_idx in tqdm(range(len(stk_raw_mrc.data)), desc=ts_name + '_' + half_name):
+            mu = stk_raw_mrc.data[view_idx].mean()
+            sigma = stk_raw_mrc.data[view_idx].std()
+            sigma_coeff = (IMAGE_SIGMA_TARGET / sigma) * dose_coeff[view_idx]
+            stk_norm_mrc.data[view_idx] = (stk_raw_mrc.data[view_idx] - mu) * sigma_coeff + IMAGE_MU_TARGET
+        
+        #mrcfile.write(stk_norm_filepath, stk_norm, overwrite=True)
+
+def normalize_worker(mrc_mmap_in, mrc_mmap_out, view_idx):
+    mu = mrc_mmap_in.data[view_idx].mean()
+    sigma = mrc_mmap_in.data[view_idx].std()
+    sigma_coeff = (IMAGE_SIGMA_TARGET / sigma) * dose_coeff[view_idx]
+    mrc_mmap_out.data[view_idx] = (mrc_mmap_in.data[view_idx] - mu) * sigma_coeff + IMAGE_MU_TARGET
+    return True
+    
 # Function to submit list of stack-assembly cmd-tasks 
 def run_assemble(ts_names, args):
     cmd_tasks = []

@@ -62,9 +62,10 @@ def setup_preproc(subparsers):
                                     "Initial contents:\n"
                                     "- raw dose-fractionated movies (MRC or TIFF) to be motion-corrected (in subfolder \"movies/\")\n"
                                     "- motion-corrected half-dose views (along with TLT files) to be assembled in half-dose stacks (in subfolder \"views/\")\n"
-                                    "- XF files to perform stack alignment (named as <TS_DIRECTORY_NAME>.xf)\n"
-                                    "- DEFOCUS files to perform CTF correction by phase-flipping (named as <TS_DIRECTORY_NAME>.defocus)\n"
-                                    "- TLT files for stacks assembly, CTF-correction and tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
+                                    "- XF file to perform stack alignment (named as <TS_DIRECTORY_NAME>.xf)\n"
+                                    "- DEFOCUS file to perform CTF correction by phase-flipping (named as <TS_DIRECTORY_NAME>.defocus)\n"
+                                    "- TLT file for stacks assembly, CTF-correction and tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
+                                    "- DOSE file for raw stack dose-normalization, if hybrid-dose data was collected (named as <TS_DIRECTORY_NAME>_dose.txt).\n"
                                     "All produced stacks are placed in subfolder \"stacks/\", final half-set tomograms - in the tilt-series folder root.\n"
                                 ))
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
@@ -81,18 +82,21 @@ def setup_preproc(subparsers):
     parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
     parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction task).")
     parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
-    parser_preproc.add_argument('--skip', choices=['', 'mcor', 'asmbl', 'align', 'ctfc', 'bin', 'rec'], default='',
+    parser_preproc.add_argument('--skip', choices=['', 'mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec'], default='',
                                 help=(
                                     "Flag to skip one or several of the pre-processing steps:\n"
                                     "mcor\t- skip motion-correction\n"
                                     "asmbl\t- skip raw stack assembly\n"
-                                    "align\t- skip raw stack alignment\n"
+                                    "norm\t- skip raw stack normalization\n"
+                                    "align\t- skip normalized/raw stack alignment\n"
                                     "bin\t- skip aligned stack binning\n"
                                     "ctfc\t- skip aligned (binned) stack CTF-correction\n"
                                     "rec\t- skip binned [CTF-corrected] tomogram reconstruction\n"
                                     "Provide as a single string or a space-separated list.\n"
                                     "If nothing selected (default), all the pre-processing steps are executed."
                                 ), nargs="+")
+    parser_preproc.add_argument('--align_raw', action="store_true", default=False,
+                                help="Flag to align raw stacks instead of normalized ones.")
     parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series. Default: 8.")
     parser_preproc.add_argument('--ctfc_params', type=str, default=CTFC_PARAMS_DEFAULT,
                                 help=(
