@@ -72,6 +72,52 @@ def setup_preproc(subparsers):
                                     "All produced stacks are placed in subfolder \"stacks/\", final half-set tomograms - in the tilt-series folder root.\n"
                                 ), required=True)
     
+    parser_preproc.add_argument('--run_step', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', 'all'], default='all',
+                                help=(
+                                    "Pre-processing steps to be runned:\n"
+                                    "   mcor\t- motion-correction\n"
+                                    "   asmbl\t- raw stack assembly\n"
+                                    "   norm\t- raw stack normalization\n"
+                                    "   align\t- stack alignment\n"
+                                    "   bin\t- aligned stack binning\n"
+                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
+                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
+                                    "Provide as a single step name or a space-separated list of several step names.\n"
+                                    "If set to \"all\" (default), all the pre-processing steps are executed.\n"
+                                    "However, if some steps are listed in --skip_step, those will not be executed (see --skip_step).\n"
+                                    "Finally, if the output data is already available, the step is skipped (to run anyways, add --overwrite)."
+                                ), nargs="+")
+    parser_preproc.add_argument('--skip_step', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', ''], default='',
+                                help=(
+                                    "Pre-processing steps to be skipped:\n"
+                                    "   mcor\t- motion-correction\n"
+                                    "   asmbl\t- raw stack assembly\n"
+                                    "   norm\t- raw stack normalization\n"
+                                    "   align\t- stack alignment\n"
+                                    "   bin\t- aligned stack binning\n"
+                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
+                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
+                                    "Provide as a single step name or a space-separated list of several step names.\n"
+                                    "If not set (default), --run_step will solely define steps to be executed (see --run_step).\n"
+                                    "Otherwise, listing step with --skip_step ensures it will not be executed."
+                                ), nargs="+")
+    parser_preproc.add_argument('--run_ts', type=str, default='all',
+                                help=(
+                                    "Tilt-series data subfolder(s) to be pre-processed.\n"
+                                    "Provide as a single tilt-serie subfolder name or a space-separated list of those.\n"
+                                    "If not set, all the found tilt-serie subfolders will be pre-processed.\n"
+                                    "However, if some subfolders are listed in --skip_ts, those will be omitted (see --skip_ts)."
+                                ), nargs="+")
+    parser_preproc.add_argument('--skip_ts', type=str, default='',
+                                help=(
+                                    "Tilt-series data subfolder(s) to be skipped during pre-processing.\n"
+                                    "Provide as a single tilt-serie subfolder name or a space-separated list of those.\n"
+                                    "If not set, --run_ts will solely define subfolders to be pre-processed (see --run_ts).\n"
+                                    "Otherwise, listing subfolder with --skip_ts ensures it will be omitted."
+                                ), nargs="+")
+    parser_preproc.add_argument('--overwrite', action="store_true", default=False,
+                                help="Flag to overwrite output data for executed steps, if already exists.")
+    
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
     parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT,
                                 help=(
@@ -86,37 +132,6 @@ def setup_preproc(subparsers):
     parser_preproc.add_argument('--apix', type=float, default=1., help="Pixel size of the raw input data.")
     parser_preproc.add_argument('--gpu_ids', type=str, default='0', help="Comma-separated list of GPU IDs to be used (for motion correction task).")
     parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
-    parser_preproc.add_argument('--run', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', 'all'], default='all',
-                                help=(
-                                    "Pre-processing steps to be runned:\n"
-                                    "   mcor\t- motion-correction\n"
-                                    "   asmbl\t- raw stack assembly\n"
-                                    "   norm\t- raw stack normalization\n"
-                                    "   align\t- stack alignment\n"
-                                    "   bin\t- aligned stack binning\n"
-                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
-                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
-                                    "Provide as a single step name or a space-separated list of several step names.\n"
-                                    "If set to \"all\" (default), all the pre-processing steps are executed.\n"
-                                    "However, if some steps are listed in --skip, those will not be executed.\n"
-                                    "Finally, if the output data is already available, the step is skipped (to run anyways, add --overwrite)."
-                                ), nargs="+")
-    parser_preproc.add_argument('--skip', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', ''], default='',
-                                help=(
-                                    "Pre-processing steps to be skipped:\n"
-                                    "   mcor\t- motion-correction\n"
-                                    "   asmbl\t- raw stack assembly\n"
-                                    "   norm\t- raw stack normalization\n"
-                                    "   align\t- stack alignment\n"
-                                    "   bin\t- aligned stack binning\n"
-                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
-                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
-                                    "Provide as a single step name or a space-separated list of several step names.\n"
-                                    "If not set (default), --run will solely define steps to be executed (see --run).\n"
-                                    "Otherwise, listing step with --skip ensures it will not be executed."
-                                ), nargs="+")
-    parser_preproc.add_argument('--overwrite', action="store_true", default=False,
-                                help="Flag to overwrite output data for executed steps, if already exists.")
     parser_preproc.add_argument('--align_raw', action="store_true", default=False,
                                 help="Flag to align raw stacks instead of normalized ones.")
     parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series. Default: 8.")
@@ -145,7 +160,7 @@ def setup_preproc(subparsers):
                                     "- provided separately: -THICKNESS (see --thickness)\n"
                                     "Defaults: \"" + REC_PARAMS_DEFAULT + "\"."
                                 ))
-    parser_preproc.add_argument('--thickness', type=int, default=256, help="Thickness (in voxels) of the tomograms to be reconstructed (at the specified binning level, see --bin). Default: 128.")
+    parser_preproc.add_argument('--thickness', type=int, default=256, help="Thickness (in voxels) of the tomograms to be reconstructed (at the specified binning level, see --bin). Default: 256.")
     parser_preproc.set_defaults(func=run_preproc)
 
 # https://stackoverflow.com/questions/55324449/how-to-specify-a-minimum-or-maximum-float-value-with-argparse

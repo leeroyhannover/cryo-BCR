@@ -21,14 +21,21 @@ def run_preproc(args):
     else:
         raise FileNotFoundError('No such directory!')
     
-    ts_names = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
-    ts_names = sorted(ts_names)
-
-    if len(ts_names) > 0:
-        print('TS subdirs (' + str(len(ts_names)) + '): ' + ' '.join(ts_names))
+    ts_names_found = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
+    ts_names_found = sorted(ts_names_found)
+    
+    if len(ts_names_found) > 0:
+        print('TS found (' + str(len(ts_names_found)) + '): ' + ' '.join(ts_names_found))
         pass
     else:
         raise FileNotFoundError('No (tilt-series) subdirs found!')
+
+    if 'all' in args.run_ts:
+        ts_names = ts_names_found
+    else:
+        ts_names = [ts_item for ts_item in ts_names_found if ts_item in args.run_ts]
+    ts_names = [ts_item for ts_item in ts_names_found if ts_item not in args.skip_ts]
+    print('TS to proc (' + str(len(ts_names)) + '): ' + ' '.join(ts_names))
     
     steps_sequence = ['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec']
     steps_titles = {
@@ -41,11 +48,11 @@ def run_preproc(args):
         'rec': 'Tomogram reconstruction'
     }
     
-    if 'all' in args.run:
+    if 'all' in args.run_step:
         steps_run = steps_sequence
     else:
-        steps_run = [step for step in steps_sequence if step in args.run]
-    steps_run = [step for step in steps_run if step not in args.skip]
+        steps_run = [step for step in steps_sequence if step in args.run_step]
+    steps_run = [step for step in steps_run if step not in args.skip_step]
     print('Run steps (' + str(len(steps_run)) + '): ' + ' '.join(steps_run))
     
     for step in steps_run:
