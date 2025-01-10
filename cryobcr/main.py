@@ -83,22 +83,40 @@ def setup_preproc(subparsers):
                                     "Defaults: \"" + MCOR_PARAMS_DEFAULT + "\"."
                                 ))
     parser_preproc.add_argument('--gain_path', type=str, default='', help="Path to the Gain file for MotionCor2 input, if necessary.")
-    parser_preproc.add_argument('--apix', type=float, help="Pixel size of the raw input data.")
-    parser_preproc.add_argument('--gpu_ids', type=str, default=0, help="Comma-separated list of GPU IDs to be used (for motion correction task).")
+    parser_preproc.add_argument('--apix', type=float, default=1., help="Pixel size of the raw input data.")
+    parser_preproc.add_argument('--gpu_ids', type=str, default='0', help="Comma-separated list of GPU IDs to be used (for motion correction task).")
     parser_preproc.add_argument('--cpus', type=int, default=1, help="Amount of CPUs to process data in parallel (for all tasks, except motion correction).")
-    parser_preproc.add_argument('--skip', choices=['', 'mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec'], default='',
+    parser_preproc.add_argument('--run', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', 'all'], default='all',
                                 help=(
-                                    "Flag to skip one or several of the pre-processing steps:\n"
-                                    "mcor\t- skip motion-correction\n"
-                                    "asmbl\t- skip raw stack assembly\n"
-                                    "norm\t- skip raw stack normalization\n"
-                                    "align\t- skip normalized/raw stack alignment\n"
-                                    "bin\t- skip aligned stack binning\n"
-                                    "ctfc\t- skip aligned (binned) stack CTF-correction\n"
-                                    "rec\t- skip binned [CTF-corrected] tomogram reconstruction\n"
-                                    "Provide as a single string or a space-separated list.\n"
-                                    "If nothing selected (default), all the pre-processing steps are executed."
+                                    "Pre-processing steps to be runned:\n"
+                                    "   mcor\t- motion-correction\n"
+                                    "   asmbl\t- raw stack assembly\n"
+                                    "   norm\t- raw stack normalization\n"
+                                    "   align\t- stack alignment\n"
+                                    "   bin\t- aligned stack binning\n"
+                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
+                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
+                                    "Provide as a single step name or a space-separated list of several step names.\n"
+                                    "If set to \"all\" (default), all the pre-processing steps are executed.\n"
+                                    "However, if some steps are listed in --skip, those will not be executed.\n"
+                                    "Finally, if the output data is already available, the step is skipped (to run anyways, add --overwrite)."
                                 ), nargs="+")
+    parser_preproc.add_argument('--skip', choices=['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec', ''], default='',
+                                help=(
+                                    "Pre-processing steps to be skipped:\n"
+                                    "   mcor\t- motion-correction\n"
+                                    "   asmbl\t- raw stack assembly\n"
+                                    "   norm\t- raw stack normalization\n"
+                                    "   align\t- stack alignment\n"
+                                    "   bin\t- aligned stack binning\n"
+                                    "   ctfc\t- aligned (binned) stack CTF-correction\n"
+                                    "   rec\t- binned (CTF-corrected) tomogram reconstruction\n"
+                                    "Provide as a single step name or a space-separated list of several step names.\n"
+                                    "If not set (default), --run will solely define steps to be executed (see --run).\n"
+                                    "Otherwise, listing step with --skip ensures it will not be executed."
+                                ), nargs="+")
+    parser_preproc.add_argument('--overwrite', action="store_true", default=False,
+                                help="Flag to overwrite output data for executed steps, if already exists.")
     parser_preproc.add_argument('--align_raw', action="store_true", default=False,
                                 help="Flag to align raw stacks instead of normalized ones.")
     parser_preproc.add_argument('--bin', type=int, default=8, help="Binning level to down-sample aligned tilt-series. Default: 8.")

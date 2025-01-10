@@ -13,55 +13,46 @@ from cryobcr.utils.utils import extract_angle
 
 def run_preproc(args):
     
-    skip_steps = args.skip
     data_path = args.data_path
+
+    if os.path.exists(data_path) and os.path.isdir(data_path):
+        print('\nData path: ' + args.data_path)
+        pass
+    else:
+        raise FileNotFoundError('No such directory!')
     
     ts_names = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
     ts_names = sorted(ts_names)
 
-    print("\n##### Motion correction #####")
-    if 'mcor' in skip_steps: 
-        print('Skipped!')
+    if len(ts_names) > 0:
+        print('TS subdirs (' + str(len(ts_names)) + '): ' + ' '.join(ts_names))
+        pass
     else:
-        run_mcor(ts_names, args)
+        raise FileNotFoundError('No (tilt-series) subdirs found!')
     
-    print("\n##### Stack assembly #####")
-    if 'asmbl' in skip_steps:
-        print('Skipped!')
-    else:
-        run_assemble(ts_names, args)
-
-    print("\n##### Stack (dose-)normalizaton #####")
-    if 'norm' in skip_steps:
-        print('Skipped!')
-    else:
-        run_normalize(ts_names, args)
+    steps_sequence = ['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec']
+    steps_titles = {
+        'mcor': 'Motion-correction',
+        'asmbl': 'Stack assembly',
+        'norm': 'Stack (dose-)normalizaton',
+        'align': 'Stack alignment',
+        'bin': 'Stack binning',
+        'ctfc': 'Stack CTF-correction',
+        'rec': 'Tomogram reconstruction'
+    }
     
-    print("\n##### Stack alignment #####")
-    if 'align' in skip_steps:
-        print('Skipped!')
+    if 'all' in args.run:
+        steps_run = steps_sequence
     else:
-        run_align(ts_names, args)
-
-    print("\n##### Stack binning #####")
-    if 'bin' in skip_steps:
-        print('Skipped!')
-    elif args.bin==1:
-        print('--bin 1 - binning is skipped!')
-    else:
-        run_bin(ts_names, args)
-
-    print("\n##### Stack CTF-correction #####")
-    if 'ctfc' in skip_steps:
-        print('Skipped!')
-    else:
-        run_ctfc(ts_names, args)
-
-    print("\n##### Tomogram reconstruction #####")
-    if 'rec' in skip_steps:
-        print('Skipped!')
-    else:
-        run_rec(ts_names, args)
+        steps_run = [step for step in steps_sequence if step in args.run]
+    steps_run = [step for step in steps_run if step not in args.skip]
+    print('Run steps (' + str(len(steps_run)) + '): ' + ' '.join(steps_run))
+    
+    for step in steps_run:
+        print('\n##### {}'.format(steps_titles[step]))
+        run_step = globals()['run_' + step]
+        run_step(ts_names, args)
+    
 
 # Function to submit list of tomogram reconstruction cmd-tasks 
 def run_rec(ts_names, args):
@@ -75,7 +66,11 @@ def run_rec(ts_names, args):
 def get_rec_cmd(data_path, ts_name, half_name, args):
     ts_path = data_path + os.sep + ts_name
     stks_path = ts_path + os.sep + "stacks"
+    tomo_path = ts_path + os.sep + "tomograms"
 
+    if not os.path.exists(tomo_path):
+        os.makedirs(tomo_path)
+    
     stk_type_suff = '.' + args.rec_data
     bin_suff = '.bin' + str(args.bin) if args.bin > 1 else '' 
     stk_in_filepath = stks_path + os.sep + ts_name + stk_type_suff + bin_suff + '.' + half_name + '.mrc'
@@ -88,17 +83,21 @@ def get_rec_cmd(data_path, ts_name, half_name, args):
         print("No TLT file found: " + ts_name + '_' + half_name)
         return None
     
-    tomo_out_filepath = ts_path + os.sep + ts_name + '.rec' + bin_suff + '.' + half_name + '.mrc'
+    tomo_out_filepath = tomo_path + os.sep + ts_name + '.rec' + bin_suff + '.' + half_name + '.mrc'
+    if not args.overwrite and os.path.exists(tomo_out_filepath) and os.path.isfile(tomo_out_filepath):
+        print('Found tomoram: ' + tomo_out_filepath)
+        print('Skipping step!')
+        return None
+    
     stdout_filepath = os.path.splitext(tomo_out_filepath)[0]
-    rec_stk_cmd = "tilt" \
+    cmd_str = "tilt" \
         + " -input " + stk_in_filepath \
         + " -output " + tomo_out_filepath \
         + " -TILTFILE " + tlt_filepath \
         + " -THICKNESS " + str(args.thickness) \
         + " " + args.rec_params
     
-    return rec_stk_cmd, stdout_filepath
-
+    return cmd_str, stdout_filepath
 
 # Function to submit list of stack CTF-correction cmd-tasks 
 def run_ctfc(ts_names, args):
@@ -135,8 +134,14 @@ def get_ctfc_cmd(data_path, ts_name, half_name, args):
         stk_ctfc_filepath = stks_path + os.sep + ts_name + '.ctfc.' + half_name + '.mrc'
     else:
         stk_ctfc_filepath = stks_path + os.sep + ts_name + '.ctfc.bin' + str(args.bin) + '.' + half_name + '.mrc'
+
+    if not args.overwrite and os.path.exists(stk_ctfc_filepath) and os.path.isfile(stk_ctfc_filepath):
+        print('Found CTF-corrected stack: ' + stk_ctfc_filepath)
+        print('Skipping step!')
+        return None
+        
     stdout_filepath = os.path.splitext(stk_ctfc_filepath)[0]
-    ctfc_stk_cmd = "ctfphaseflip" \
+    cmd_str = "ctfphaseflip" \
         + " -input " + stk_ali_filepath \
         + " -output " + stk_ctfc_filepath \
         + " -angleFn " + tlt_filepath \
@@ -148,9 +153,9 @@ def get_ctfc_cmd(data_path, ts_name, half_name, args):
     
     if args.no_auto_maxWidth is False:
         stk_w,stk_h,stk_z = get_mrc_shape(stk_ali_filepath)
-        ctfc_stk_cmd += " -maxWidth " + str(stk_h)
+        cmd_str += " -maxWidth " + str(stk_h)
     
-    return ctfc_stk_cmd, stdout_filepath
+    return cmd_str, stdout_filepath
 
 def get_mrc_shape(mrc_filepath):
     header_cmd = "header -s " + mrc_filepath
@@ -160,14 +165,20 @@ def get_mrc_shape(mrc_filepath):
 
 # Function to submit list of stack binning cmd-tasks 
 def run_bin(ts_names, args):
+
+    if args.bin == 1:
+        print('Skipping step due to --bin 1')
+        return
+    
     cmd_tasks = []
     for ts_id in range(len(ts_names)):
-        cmd_tasks += filter(None, [get_bin_cmd(args.data_path, ts_names[ts_id], 'EVN', args.bin)])
-        cmd_tasks += filter(None, [get_bin_cmd(args.data_path, ts_names[ts_id], 'ODD', args.bin)])
+        cmd_tasks += filter(None, [get_bin_cmd(args.data_path, ts_names[ts_id], 'EVN', args)])
+        cmd_tasks += filter(None, [get_bin_cmd(args.data_path, ts_names[ts_id], 'ODD', args)])
     run_parallel_tasks(cmd_tasks, args.cpus, "Stacks binned (even+odd)")
 
 # Function to setup stack binning cmd-task 
-def get_bin_cmd(data_path, ts_name, half_name, bin_lvl):
+def get_bin_cmd(data_path, ts_name, half_name, args):
+    bin_lvl = args.bin
     ts_path = data_path + os.sep + ts_name
     stk_ali_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.ali.' + half_name + '.mrc'
     if not os.path.exists(stk_ali_filepath) or not os.path.isfile(stk_ali_filepath):
@@ -175,14 +186,19 @@ def get_bin_cmd(data_path, ts_name, half_name, bin_lvl):
         return None
 
     stk_bin_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.ali.bin' + str(bin_lvl) + '.' + half_name + '.mrc'
+    if not args.overwrite and os.path.exists(stk_bin_filepath) and os.path.isfile(stk_bin_filepath):
+        print('Found aligned binned stack: ' + stk_bin_filepath)
+        print('Skipping step!')
+        return None
+    
     stdout_filepath = os.path.splitext(stk_bin_filepath)[0]
-    bin_stk_cmd = "newstack" \
+    cmd_str = "newstack" \
         + " -input " + stk_ali_filepath \
         + " -output " + stk_bin_filepath \
         + " -antialias 6" \
         + " -bin " + str(bin_lvl)
         
-    return bin_stk_cmd, stdout_filepath
+    return cmd_str, stdout_filepath
     
 # Function to submit list of stack-alignment cmd-tasks 
 def run_align(ts_names, args):
@@ -198,7 +214,7 @@ def get_align_cmd(data_path, ts_name, half_name, args):
 
     stk_in_type = 'raw' if args.align_raw else 'norm'
     stk_raw_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.' + stk_in_type + '.' + half_name + '.mrc'
-    print(args.align_raw, stk_in_type)
+    
     if not os.path.exists(stk_raw_filepath) or not os.path.isfile(stk_raw_filepath):
         print("No raw stack found: " + ts_name + '_' + half_name)
         return None
@@ -209,15 +225,20 @@ def get_align_cmd(data_path, ts_name, half_name, args):
         return None
 
     stk_ali_filepath = ts_path + os.sep + "stacks" + os.sep + ts_name + '.ali.' + half_name + '.mrc'
+    if not args.overwrite and os.path.exists(stk_ali_filepath) and os.path.isfile(stk_ali_filepath):
+        print('Found aligned stack: ' + stk_ali_filepath)
+        print('Skipping step!')
+        return None
+    
     stdout_filepath = os.path.splitext(stk_ali_filepath)[0]
-    assemble_stk_cmd = "newstack" \
+    cmd_str = "newstack" \
         + " -input " + stk_raw_filepath \
         + " -output " + stk_ali_filepath \
         + " -xform " + xf_filepath
         
-    return assemble_stk_cmd, stdout_filepath
+    return cmd_str, stdout_filepath
 
-def run_normalize(ts_names, args):
+def run_norm(ts_names, args):
 
     data_path = args.data_path
     data_cycle = [(ts_id,half_name) for ts_id in range(len(ts_names)) for half_name in ['EVN', 'ODD']]
@@ -230,6 +251,11 @@ def run_normalize(ts_names, args):
         
         if not os.path.exists(stk_raw_filepath) or not os.path.isfile(stk_raw_filepath):
             print("No raw stack found: " + ts_name + '_' + half_name)
+            continue
+
+        if not args.overwrite and os.path.exists(stk_norm_filepath) and os.path.isfile(stk_norm_filepath):
+            print('Found normalized stack: ' + stk_raw_filepath)
+            print('Skipping step!')
             continue
         
         dose_in = args.data_path + os.sep + ts_name + os.sep + ts_name + '_dose.txt'
@@ -270,15 +296,15 @@ def normalize_worker(mrc_mmap_in, mrc_mmap_out, view_idx):
     return True
     
 # Function to submit list of stack-assembly cmd-tasks 
-def run_assemble(ts_names, args):
+def run_asmbl(ts_names, args):
     cmd_tasks = []
     for ts_id in range(len(ts_names)):
-        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'EVN')])
-        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'ODD')])
+        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'EVN', args)])
+        cmd_tasks += filter(None, [get_assemble_cmd(args.data_path, ts_names[ts_id], 'ODD', args)])
     run_parallel_tasks(cmd_tasks, args.cpus, "Stacks assembled (even+odd)")
 
 # Function to setup stack-assembly cmd-task 
-def get_assemble_cmd(data_path, ts_name, half_name):
+def get_assemble_cmd(data_path, ts_name, half_name, args):
     dirpath_in = data_path + os.sep + ts_name + os.sep + "views"
     files_in = [filename for filename in os.listdir(dirpath_in) if os.path.isfile(dirpath_in + os.sep + filename) and filename.endswith(half_name + '.mrc')]
 
@@ -300,12 +326,18 @@ def get_assemble_cmd(data_path, ts_name, half_name):
     if not os.path.exists(data_path + os.sep + ts_name + os.sep + "stacks"):
         os.makedirs(data_path + os.sep + ts_name + os.sep + "stacks")
     stk_raw_filepath = data_path + os.sep + ts_name + os.sep + "stacks" + os.sep + ts_name + ".raw." + half_name + ".mrc"
+
+    if not args.overwrite and os.path.exists(stk_raw_filepath) and os.path.isfile(stk_raw_filepath):
+        print('Found raw assembled stack: ' + stk_raw_filepath)
+        print('Skipping step!')
+        return None
+    
     stdout_filepath = os.path.splitext(stk_raw_filepath)[0]
-    assemble_stk_cmd = "newstack" \
+    cmd_str = "newstack" \
         + " " + " ".join(filepaths_in) \
         + " " + stk_raw_filepath
     
-    return assemble_stk_cmd, stdout_filepath
+    return cmd_str, stdout_filepath
 
 # Function to setup and submit list of MotionCor2 cmd-tasks 
 def run_mcor(ts_names, args):
@@ -323,7 +355,13 @@ def run_mcor(ts_names, args):
         dirpath_out = args.data_path + os.sep + ts_names[ts_id] + os.sep + "views"
         if not os.path.exists(dirpath_out):
             os.makedirs(dirpath_out)
-    
+        else:
+            files_out = [filename for filename in os.listdir(dirpath_out) if os.path.isfile(dirpath_out + os.sep + filename) and (filename.endswith('EVN.mrc') or filename.endswith('ODD.mrc'))]
+            if not args.overwrite and len(files_out) == 2*len(files_in):
+                print('Found all motion-corrected views: ' + dirpath_out)
+                print('Skipping step!')
+                continue
+        
         gpu_ids = [int(gpu_id) for gpu_id in args.gpu_ids.strip().split(',')]
         
         cmd_tasks = []
