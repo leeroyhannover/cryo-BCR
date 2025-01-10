@@ -1,5 +1,6 @@
 
 import os
+import sys
 import argparse
 
 from cryobcr.utils.constants import *
@@ -55,7 +56,9 @@ def setup_assemble(subparsers):
 def setup_preproc(subparsers):
     from .preproc import run_preproc
     parser_preproc = subparsers.add_parser("preproc", help="Preprocess raw movies to get even/odd half-set data (e.g. tomograms for training). MotionCor2 and IMOD needed for individual steps.", formatter_class=CustomHelpFormatter)
-    parser_preproc.add_argument('--data_path', type=str,
+    
+    required_preproc = parser_preproc.add_argument_group('required arguments')
+    required_preproc.add_argument('--data_path', type=str,
                                 help=(
                                     "Path to the tilt-series data to be processed, organised to individual directories per each tilt-serie.\n"
                                     "Directory names are used as the corresponding tilt-serie names (for stacks and tomograms).\n"
@@ -67,7 +70,8 @@ def setup_preproc(subparsers):
                                     "- TLT file for stacks assembly, CTF-correction and tomogram reconstruction (named as <TS_DIRECTORY_NAME>.tlt)\n"
                                     "- DOSE file for raw stack dose-normalization, if hybrid-dose data was collected (named as <TS_DIRECTORY_NAME>_dose.txt).\n"
                                     "All produced stacks are placed in subfolder \"stacks/\", final half-set tomograms - in the tilt-series folder root.\n"
-                                ))
+                                ), required=True)
+    
     parser_preproc.add_argument('--mcor_exe', type=str, help="MotionCor2 executable name/path.")
     parser_preproc.add_argument('--mcor_params', type=str, default=MCOR_PARAMS_DEFAULT,
                                 help=(
@@ -157,7 +161,14 @@ def main():
     setup_predict(subparsers)
     setup_assemble(subparsers)
     
-    args = parser.parse_args()
+    # If no args passed, print help instead of required arg error
+    if len(sys.argv)==2 and sys.argv[1] not in ['--help', '-h']:
+            args_ini = [sys.argv[1], '--help']
+    elif len(sys.argv)==1:
+        args_ini = ['--help']
+    else:
+        args_ini = None
+    args = parser.parse_args(args=args_ini)
     
     # Call the appropriate function based on the command
     if hasattr(args, "func"):
