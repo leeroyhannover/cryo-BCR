@@ -29,6 +29,23 @@ def read_mrc_data(dir_path, filenames):
 
     return np.asarray(all_data)
 
+def get_ts_names(data_path, run_ts, skip_ts):
+    ts_names_found = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
+    ts_names_found = sorted(ts_names_found)
+    
+    if len(ts_names_found) > 0:
+        print('TS found (' + str(len(ts_names_found)) + '): ' + ' '.join(ts_names_found))
+        pass
+    else:
+        raise FileNotFoundError('No (tilt-series) subdirs found!')
+
+    if 'all' in run_ts:
+        ts_names = ts_names_found
+    else:
+        ts_names = [ts_item for ts_item in ts_names_found if ts_item in run_ts]
+    ts_names = [ts_item for ts_item in ts_names_found if ts_item not in skip_ts]
+    return ts_names
+
 def split_train_data(data, train_ratio=TRAIN_FRACTION_DEFAULT):
     # Assuming data of shape [num_vols, sz_z, sz_x, sz_y]
     data_shape = data.shape

@@ -9,7 +9,9 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from cryobcr.utils.constants import *
+from cryobcr.utils.data import get_ts_names
 from cryobcr.utils.utils import extract_angle
+
 
 def run_preproc(args):
     
@@ -21,20 +23,7 @@ def run_preproc(args):
     else:
         raise FileNotFoundError('No such directory!')
     
-    ts_names_found = [dir_item for dir_item in os.listdir(data_path) if os.path.isdir(data_path + os.sep + dir_item)]
-    ts_names_found = sorted(ts_names_found)
-    
-    if len(ts_names_found) > 0:
-        print('TS found (' + str(len(ts_names_found)) + '): ' + ' '.join(ts_names_found))
-        pass
-    else:
-        raise FileNotFoundError('No (tilt-series) subdirs found!')
-
-    if 'all' in args.run_ts:
-        ts_names = ts_names_found
-    else:
-        ts_names = [ts_item for ts_item in ts_names_found if ts_item in args.run_ts]
-    ts_names = [ts_item for ts_item in ts_names_found if ts_item not in args.skip_ts]
+    ts_names = get_ts_names(data_path, args.run_ts, args.skip_ts)
     print('TS to proc (' + str(len(ts_names)) + '): ' + ' '.join(ts_names))
     
     steps_sequence = ['mcor', 'asmbl', 'norm', 'align', 'bin', 'ctfc', 'rec']
