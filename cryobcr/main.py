@@ -225,8 +225,12 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description=(
-            "A deep learning model for cryo-ET data denoising. The model is based on BCR-wavelets decomposition and works in Noise2Noise framework.\n"
-            "This tool helps you to denoise your tomograms using a trained cryo-BCR model as well as to prepare even/odd tomogram halfsets and train model on your own data." 
+            "cryo-BCR: DL-based cryoET denoising toolkit.\n"
+            "Denoiser is the m_rBCR model, reimplemented for Noise2Noise framework.\n"
+            "The toolkit provides you with tools to:\n"
+            "- denoise your tomograms using trained cryo-BCR model;\n"
+            "- train cryo-BCR model on your own data;\n"
+            "- prepare your own data to denoise it or train a cryo-BCR model."
         ),
         formatter_class=CustomHelpFormatter
     )
