@@ -5,16 +5,18 @@ from natsort import natsorted
 #from cryobcr.utils.utils import *
 from cryobcr.utils.constants import TRAIN_FRACTION_DEFAULT
 
-def get_mrc_filenames(dir_path, halfsets=False):
-    if halfsets == True:
-        filenames_even = [filename for filename in os.listdir(dir_path) if filename.endswith('_even.mrc') or filename.endswith('_even.rec')]
-        filenames_odd = [filename for filename in os.listdir(dir_path) if filename.endswith('_odd.mrc') or filename.endswith('_odd.rec')]
-        return sorted(filenames_even), sorted(filenames_odd)
+def get_mrc_filenames(dir_path, halfset_suffix=''):
+    if halfset_suffix in ['', 'EVN', 'ODD']:
+        if halfset_suffix in ['EVN', 'ODD']:
+           halfset_suffix = '.' + halfset_suffix
+        pass
     else:
-        filenames = [filename for filename in os.listdir(dir_path) if filename.endswith('.rec') or filename.endswith('.mrc')]
-        filenames = natsorted(filenames)
-        return filenames
-
+        raise ValueError('No such half-set name: ' + halfset_suffix)
+    
+    filenames = [filename for filename in os.listdir(dir_path) if filename.endswith(halfset_suffix + '.rec') or filename.endswith(halfset_suffix + '.mrc')]
+    filenames = natsorted(filenames)
+    return filenames
+    
 def get_npz_filenames(dir_path):
     filenames = [filename for filename in os.listdir(dir_path) if filename.endswith('.npz')]
     return filenames
@@ -45,6 +47,19 @@ def get_ts_names(data_path, run_ts, skip_ts):
         ts_names = [ts_item for ts_item in ts_names_found if ts_item in run_ts]
     ts_names = [ts_item for ts_item in ts_names_found if ts_item not in skip_ts]
     return ts_names
+
+def get_train_data_split(total_size, train_ratio=TRAIN_FRACTION_DEFAULT):
+    train_size = int(total_size * train_ratio)
+    all_idx = list(range(total_size))
+
+    train_idx = all_idx[:train_size]
+    val_idx = all_idx[train_size:]
+
+    #NB: split data randomly in future
+    #from random import sample
+    #train_idx = sample(range(total_size),all_idx)
+    
+    return train_idx, val_idx
 
 def split_train_data(data, train_ratio=TRAIN_FRACTION_DEFAULT):
     # Assuming data of shape [num_vols, sz_z, sz_x, sz_y]

@@ -35,13 +35,58 @@ def setup_predict(subparsers):
 
 def setup_extract(subparsers):
     from .extract import run_extract
-    parser_extract = subparsers.add_parser("extract", help="Extract tomogram patches for training or prediction.")
-    parser_extract.add_argument('--input_path', type=str, help="Path to a single MRC/REC tomogram file or a folder containing set of MRC/REC tomogram files to be patchified for training or prediction.")
-    parser_extract.add_argument('--output_path', type=str, default='./patches', help="Path to the output folder for patchified tomograms in NPZ file format.")
-    parser_extract.add_argument('--train_data', type=bool, default=False, help="Flag to determine if data is extracted (patchified) for training (default: False). If so, even/odd tomogram halfsets should be present in input directory (named as '*_even.*' and '*_odd.*', respectively).")
-    parser_extract.add_argument('--train_fraction', type=ranged_type(float, TRAIN_FRACTION_MIN, 1.0), default=TRAIN_FRACTION_DEFAULT, help="Fraction of the provided data to extract as validation subset and the rest - as a training subset (default: " + str(TRAIN_FRACTION_DEFAULT) + "). After split data is saved under 'train/' and 'val/' subdirectories of the provided output path.")
-    parser_extract.add_argument('--patch_size', type=str, default='128,128,128', help="Size of the patches to be extracted from input tomogram(s). Provide as comma-separated list of 3 integer numbers for patches along x,y,z (default: 128,128,128).")
-    parser_extract.add_argument('--patch_overlap', type=str, default='0.,0.,0.', help="Fraction (0.0-1.0) of overlap between patches to be extracted. Provide as comma-separated list of 3 decimal numbers for overlap fractions along x,y,z (default: 0.,0.,0.).")
+    parser_extract = subparsers.add_parser("extract", help="Extract tomogram patches for training or prediction.", formatter_class=CustomHelpFormatter)
+    
+    required_extract = parser_extract.add_argument_group('required arguments')
+    required_extract.add_argument('--input_path', type=str, help="Path to a single MRC/REC tomogram file or a folder containing set of MRC/REC tomogram files to be patchified for training or prediction.\nIf input folder is cryobcr preprocessing folder, set --input_cryobcr.", required=True)
+    
+    parser_extract.add_argument('--input_cryobcr', action="store_true", default=False, help="Flag to indicate if input folder has cryobcr-preprocessed data structure to find tomograms locations. Default: False.")
+    parser_extract.add_argument('--run_ts', type=str, default='all',
+                                help=(
+                                    "Tomogram(s) to be patched, if cryobcr data structure is used (set --input_cryobcr).\n"
+                                    "Provide as a corresponding single tilt-serie subfolder name or a space-separated list of those.\n"
+                                    "If not set, all the found tomograms will be patched.\n"
+                                    "However, if some subfolders are listed in --skip_ts, those will be omitted (see --skip_ts)."
+                                ), nargs="+")
+    parser_extract.add_argument('--skip_ts', type=str, default='',
+                                help=(
+                                    "Tomogram(s) to be skipped during patching, if cryobcr data structure is used (set --input_cryobcr).\n"
+                                    "Provide as a corresponding single tilt-serie subfolder name or a space-separated list of those.\n"
+                                    "If not set, --run_ts will solely define tomograms to be patched (see --run_ts).\n"
+                                    "Otherwise, listing subfolder with --skip_ts ensures it will be omitted."
+                                ), nargs="+")
+    parser_extract.add_argument('--bin', type=int, default=8, help="Binning level of tomograms to be patched, if cryobcr data structure is used (set --input_cryobcr). Default: 8.")
+    
+    parser_extract.add_argument('--output_path', type=str, default=None,
+                                help=(
+                                    "Path to the output folder for patchified tomograms in NPZ file format.\n"
+                                    "If --train_data is set, the output will be split in subdirectories \"train/\" and \"val/\".\n"
+                                    "If input contains half-set data (*.EVN.mrc and *.ODD.mrc), halves are stored as \"even\" and \"odd\" in NPZ(s)."
+                                ))
+    
+    parser_extract.add_argument('--train_data', action="store_true", default=False,
+                                help=(
+                                    "Flag to prepare (extract) the data for training, meaning:\n"
+                                    "- even/odd tomogram half-sets must be available at the input location (named as '*.EVN.*' and '*.ODD.*')\n"
+                                    "- data will be split on train/validation sets (see --train_fraction for split ratio)\n"
+                                    "- train/validation sets are placed in the \"train/\" and \"val/\" subdirectories.\n"
+                                    "To use this option, at least " + str(MIN_TOMOGRAMS_TO_TRAIN) + " tomograms must be available!"
+                                ))
+    parser_extract.add_argument('--train_fraction', type=ranged_type(float, TRAIN_FRACTION_MIN, TRAIN_FRACTION_MAX), default=TRAIN_FRACTION_DEFAULT,
+                                help=(
+                                    "Fraction of the provided data to extract as train subset (default: " + str(TRAIN_FRACTION_DEFAULT) + ").\n"
+                                    "The rest will be used as a validation subset."
+                                ))
+    parser_extract.add_argument('--patch_size', type=str, default='128,128,128',
+                                help=(
+                                    "Size of the patches to be extracted from input tomogram(s).\n"
+                                    "Provide as comma-separated list of 3 integer numbers for patches along x,y,z (default: 128,128,128)."
+                                ))
+    parser_extract.add_argument('--patch_overlap', type=str, default='0.,0.,0.',
+                                help=(
+                                    "Fraction (0.0-1.0) of overlap between patches to be extracted.\n"
+                                    "Provide as comma-separated list of 3 decimal numbers for overlap fractions along x,y,z (default: 0.,0.,0.)."
+                                ))
     parser_extract.set_defaults(func=run_extract)
 
 def setup_assemble(subparsers):
